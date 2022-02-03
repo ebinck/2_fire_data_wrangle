@@ -1,7 +1,7 @@
 ---
 title: "Hayman Fire Recovery"
-author: "Matthew Ross"
-date: "10/3/2019"
+author: "Elin Binck"
+date: "2/2/2019"
 output: html_document
 ---
 
@@ -21,7 +21,8 @@ knitr::opts_knit$set(root.dir='..')
 ```{r dataread, warning=F,message=F}
 ####-----Reading in Data and Stacking it ----- ####
 #Reading in files
-files <- list.files('../data',full.names=T)
+
+files <- list.files('data',full.names=T)
 
 
 #Read in individual data files
@@ -49,43 +50,139 @@ full_long <- rbind(ndvi,ndmi,ndsi) %>%
 
 
 
-## Question 1) 
+## Question 1
 
-What is the correlation between NDVI and NDMI? - here I want you to
+**What is the correlation between NDVI and NDMI? - here I want you to
 convert the full_long dataset in to a wide dataset using the 
 function "spread" and then make a plot that shows the correlation s a
 function of if the site was burned or not (x axis should be ndmi)
-You should exclude winter months and focus on summer months
+You should exclude winter months and focus on summer months**
+
+There appears to be a strong positive correlation between NDVI and NDMI, where as NDMI increases, NDVI increases.  This is intuitive because it indicates that, with higher soil moisture, there would be more growth and therefore greenness. This figure also demonstrates that prior to the fire in 2002, the two sites had very similar patterns in NDVI and NDMI, but after the fire, the burned area had both lower soil moisture levels and less vegetative growth. 
+
+```{r}
+full_wide <- full_long %>%
+  spread(data, value) %>% 
+  mutate(month = month(DateTime)) %>% 
+  mutate(year = year(DateTime))
+  
+
+  
+full_wide %>% 
+  filter(!month %in% c(10, 11, 12, 1, 2, 3, 4, 5)) %>% 
+  ggplot(aes(x = ndmi, y = ndvi, color = site))+
+  geom_point()+
+  xlim(-0.5, 0.5)+
+  theme_few()+
+  theme(legend.position=c(0.2,0.8))+
+  xlab("NDMI") +
+  ylab("NDVI")
+
+```
 
 
 
 ## Question 2 
 
-2) What is the correlation between average NDSI (normalized
+**What is the correlation between average NDSI (normalized
  snow index) for January - April and average NDVI for June-August?
 In other words, does the previous year's snow cover influence vegetation
- growth for the following summer?
+ growth for the following summer?**
+
+While there is a clear difference in NDVI between the burned and unburned areas after the fire, there is no apparent trend between the snow cover the previous winter and the vegetation growth of the corresponding summer.  
+
+```{r}
+
+#filter to just June-Aug, then calculate mean NDVI for each year 
+
+summer_ndvi<-full_wide %>% 
+  filter(month %in% c(6,7,8)) %>% 
+  group_by(site,year) %>%
+  summarize(summermean_ndvi = mean(ndvi)) 
+
+#similar as above, but for winter NDSI
+
+winter_ndsi<-full_wide %>% 
+  filter(month %in% c(1,2,3,4)) %>% 
+  group_by(site,year) %>%
+  summarize(wintermean_ndsi = mean(ndsi)) 
+
+#Join those two tables together by year and site, and filter out NAs
+
+ndvi_ndsi_seasonal <- summer_ndvi %>% 
+  inner_join(winter_ndsi, by = c("year", "site")) %>% 
+  filter_if(is.numeric, all_vars(!is.na(.)))
+
+#plot the relationship between NDVI and NDSI
+
+ndvi_ndsi_seasonal %>% 
+ggplot(aes(x = wintermean_ndsi, y = summermean_ndvi, color = site))+
+  geom_point()+
+  theme_few()+
+  ylab("Summer Mean NDVI")+
+  xlab("Winter Mean NDSI")+
+  ggtitle("Mean NDVI and NDSI Values 1984-2018")
+```
 
 
 ## Q3
 
-How is the snow effect from question 2 different between pre- and post-burn
-and burned and unburned? 
+**How is the snow effect from question 2 different between pre- and post-burn
+and burned and unburned?**
+
+The NDVI values post-burn in the burned area are distinctly lower than the NDVI values in the unburned and pre-burn data points.  At first glance, it also appears there might difference in the NDSI values, where the burn resulted in a max of 0.25, but when the data points are filtered for after 2002 (post-burn) it is clear that this is true for both the burned and unburned areas.
+
+```{r}
+ndvi_ndsi_seasonal %>% 
+  filter(year > 2002) %>% 
+ggplot(aes(x = wintermean_ndsi, y = summermean_ndvi, color = site))+
+  geom_point()+
+  theme_few()+
+  ylab("Summer Mean NDVI")+
+  xlab("Winter Mean NDSI")+
+  ggtitle("Mean NDVI and NDSI Values Post-Burn (2003-2018)")
+```
 
 
 ## Question 4
 
-What month is the greenest month on average? 
+**What month is the greenest month on average?**
 
+August has the greatest NDVI value, on average, across both sites and all years.
 
+```{r}
+#group by month to calculate averages across all sites for NDVI, then filter for the mean_ndvi value that is equal to the max from that column.
+
+ndvi_monthly<-full_wide %>% 
+  group_by(month) %>%
+  summarise(mean_ndvi = mean(ndvi, na.rm = TRUE)) %>% 
+  filter(mean_ndvi == max(mean_ndvi))
+
+ndvi_monthly
+
+```
 
 
 ## Question 5) 
 
-What month is the snowiest on average?
+**What month is the snowiest on average?**
 
+January has the greatest NDSI value on average, across both sites and years.
+
+
+```{r}
+
+ndsi_monthly<-full_wide %>% 
+  group_by(month) %>%
+  summarise(mean_ndsi = mean(ndsi, na.rm = TRUE)) %>% 
+  filter(mean_ndsi == max(mean_ndsi))
+
+ndsi_monthly  
+  
+```
 
 ## Bonus Question: Redo all problems with `spread` and `gather` using modern tidyverse syntax. 
+
 
 
 ## Bonus Question: Use Climage Engine to pull the same data for the assignment, but updated with 2020/2021 data.
